@@ -43,7 +43,7 @@ import ugh.fileformats.mets.MetsMods;
 @PrepareForTest({ MetadatenHelper.class, VariableReplacer.class, ConfigurationHelper.class, ProcessManager.class,
         MetadataManager.class })
 @PowerMockIgnore({ "javax.management.*", "javax.xml.*", "org.xml.*", "org.w3c.*", "javax.net.ssl.*", "jdk.internal.reflect.*" })
-public class SamplePluginTest {
+public class OcrToMetadataPluginTest {
 
     private static String resourcesFolder;
 
@@ -71,13 +71,13 @@ public class SamplePluginTest {
 
     @Test
     public void testConstructor() throws Exception {
-        SampleStepPlugin plugin = new SampleStepPlugin();
+        OcrToMetadataStepPlugin plugin = new OcrToMetadataStepPlugin();
         assertNotNull(plugin);
     }
 
     @Test
     public void testInit() {
-        SampleStepPlugin plugin = new SampleStepPlugin();
+        OcrToMetadataStepPlugin plugin = new OcrToMetadataStepPlugin();
         plugin.initialize(step, "something");
         assertEquals(step.getTitel(), plugin.getStep().getTitel());
     }

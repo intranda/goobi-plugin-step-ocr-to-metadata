@@ -12,10 +12,8 @@
         <project>*</project>
         <step>*</step>
         
-        <!-- sample parameter -->
-        <value>test</value>
-        <!-- display button to finish the task directly from within the entered plugin -->
-        <allowTaskFinishButtons>true</allowTaskFinishButtons>
+        <!-- Name of the field where to store the OCR result in -->
+        <metadataField>true</metadataField>
     </config>
 
 </config_plugin>
