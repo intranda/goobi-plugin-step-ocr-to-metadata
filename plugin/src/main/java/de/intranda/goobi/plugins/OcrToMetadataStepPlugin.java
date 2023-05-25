@@ -1,5 +1,8 @@
 package de.intranda.goobi.plugins;
 
+import java.io.IOException;
+import java.nio.file.Path;
+
 /**
  * This file is part of a plugin for Goobi - a Workflow tool for the support of mass digitization.
  *
@@ -22,7 +25,9 @@ package de.intranda.goobi.plugins;
 import java.util.HashMap;
 
 import org.apache.commons.configuration.SubnodeConfiguration;
+import org.goobi.beans.Process;
 import org.goobi.beans.Step;
+import org.goobi.production.enums.LogType;
 import org.goobi.production.enums.PluginGuiType;
 import org.goobi.production.enums.PluginReturnValue;
 import org.goobi.production.enums.PluginType;
@@ -30,6 +35,10 @@ import org.goobi.production.enums.StepReturnValue;
 import org.goobi.production.plugin.interfaces.IStepPluginVersion2;
 
 import de.sub.goobi.config.ConfigPlugins;
+import de.sub.goobi.helper.Helper;
+import de.sub.goobi.helper.StorageProvider;
+import de.sub.goobi.helper.StorageProviderInterface;
+import de.sub.goobi.helper.exceptions.SwapException;
 import lombok.Getter;
 import lombok.extern.log4j.Log4j2;
 import net.xeoh.plugins.base.annotations.PluginImplementation;
@@ -37,6 +46,7 @@ import net.xeoh.plugins.base.annotations.PluginImplementation;
 @PluginImplementation
 @Log4j2
 public class OcrToMetadataStepPlugin implements IStepPluginVersion2 {
+    private static StorageProviderInterface storageProvider = StorageProvider.getInstance();
 
     @Getter
     private String title = "intranda_step_ocr_to_metadata";
@@ -48,6 +58,11 @@ public class OcrToMetadataStepPlugin implements IStepPluginVersion2 {
     private String metadataField;
     private String returnPath;
 
+    // text value that will be read from the ocr folder and saved to the mets file
+    private String textValue;
+    // true if ocr text folder is available, false otherwise
+    private boolean ocrTextFolderAvailable;
+
     @Override
     public void initialize(Step step, String returnPath) {
         this.returnPath = returnPath;
@@ -57,6 +72,7 @@ public class OcrToMetadataStepPlugin implements IStepPluginVersion2 {
         SubnodeConfiguration myconfig = ConfigPlugins.getProjectAndStepConfig(title, step);
         value = myconfig.getString("value", "default value");
         metadataField = myconfig.getString("metadataField");
+        log.debug("metadataField = " + metadataField);
         log.info("OcrToMetadata step plugin initialized");
     }
 
@@ -106,10 +122,85 @@ public class OcrToMetadataStepPlugin implements IStepPluginVersion2 {
         boolean successful = true;
         // your logic goes here
 
+        // check ocr folder
+        successful = successful && checkOcrFolder();
+
+        // get text value from ocr folder
+        successful = successful && prepareTextValue();
+
+        // write the combined text value to the mets file
+        successful = successful && saveTextValueToMets();
+
         log.info("OcrToMetadata step plugin executed");
-        if (!successful) {
-            return PluginReturnValue.ERROR;
-        }
-        return PluginReturnValue.FINISH;
+        return successful ? PluginReturnValue.FINISH : PluginReturnValue.ERROR;
     }
+
+    private boolean checkOcrFolder() {
+        Process process = step.getProzess();
+        try {
+            String ocrDir = process.getOcrDirectory();
+            boolean success = checkExistenceOfDirectory(ocrDir);
+
+            String ocrTextDir = process.getOcrTxtDirectory();
+            ocrTextFolderAvailable = success && checkExistenceOfDirectory(ocrTextDir);
+
+            // check alto directory only when there is no text folder available
+            success = ocrTextFolderAvailable || checkExistenceOfDirectory(process.getOcrAltoDirectory());
+
+            log.debug("ocrDir = " + ocrDir);
+            log.debug("ocrTextDir = " + ocrTextDir);
+            log.debug("ocrTextFolderAvailable = " + ocrTextFolderAvailable);
+            log.debug("ocr text / alto folder available = " + success);
+
+            return success;
+        } catch (SwapException | IOException e) {
+            String message = "failed to get the ocr folder";
+            logBoth(process.getId(), LogType.ERROR, message);
+            return false;
+        }
+    }
+
+    private boolean checkExistenceOfDirectory(String directory) {
+        Path path = Path.of(directory);
+        return storageProvider.isFileExists(path) && storageProvider.isDirectory(path);
+    }
+
+    private boolean prepareTextValue() {
+
+        return true;
+    }
+
+    private boolean saveTextValueToMets() {
+
+        return true;
+    }
+
+    /**
+     * print logs to terminal and journal
+     * 
+     * @param processId id of the Goobi process
+     * @param logType type of the log
+     * @param message message to be shown to both terminal and journal
+     */
+    private void logBoth(int processId, LogType logType, String message) {
+        String logMessage = "OcrToMetadata Step Plugin: " + message;
+        switch (logType) {
+            case ERROR:
+                log.error(logMessage);
+                break;
+            case DEBUG:
+                log.debug(logMessage);
+                break;
+            case WARN:
+                log.warn(logMessage);
+                break;
+            default: // INFO
+                log.info(logMessage);
+                break;
+        }
+        if (processId > 0) {
+            Helper.addMessageToProcessJournal(processId, logType, logMessage);
+        }
+    }
+
 }
