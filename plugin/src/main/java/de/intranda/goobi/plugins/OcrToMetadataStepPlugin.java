@@ -342,24 +342,6 @@ public class OcrToMetadataStepPlugin implements IStepPluginVersion2 {
     }
 
     /**
-     * get the value of an existing Metadata
-     * 
-     * @param ds DocStruct whose Metadata should be searched
-     * @param elementType name of MetadataType
-     * @return value of the Metadata if successfully found, null otherwise
-     */
-    private String findExistingMetadata(DocStruct ds, String elementType) {
-        if (ds.getAllMetadata() != null) {
-            for (Metadata md : ds.getAllMetadata()) {
-                if (md.getType().getName().equals(elementType)) {
-                    return md.getValue();
-                }
-            }
-        }
-        return null;
-    }
-
-    /**
      * print logs to terminal and journal
      * 
      * @param processId id of the Goobi process
