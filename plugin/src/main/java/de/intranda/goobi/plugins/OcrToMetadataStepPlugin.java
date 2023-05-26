@@ -46,6 +46,15 @@ import de.sub.goobi.helper.exceptions.SwapException;
 import lombok.Getter;
 import lombok.extern.log4j.Log4j2;
 import net.xeoh.plugins.base.annotations.PluginImplementation;
+import ugh.dl.DigitalDocument;
+import ugh.dl.DocStruct;
+import ugh.dl.Fileformat;
+import ugh.dl.Metadata;
+import ugh.dl.MetadataType;
+import ugh.dl.Prefs;
+import ugh.exceptions.MetadataTypeNotAllowedException;
+import ugh.exceptions.PreferencesException;
+import ugh.exceptions.ReadException;
 
 @PluginImplementation
 @Log4j2
@@ -132,6 +141,9 @@ public class OcrToMetadataStepPlugin implements IStepPluginVersion2 {
         // check ocr folder
         successful = successful && checkOcrFolder();
 
+        // validate metadataField, check its existence or addability
+        successful = successful && validateMetadataField();
+
         // get text value from ocr folder
         successful = successful && prepareTextValue();
 
@@ -140,6 +152,52 @@ public class OcrToMetadataStepPlugin implements IStepPluginVersion2 {
 
         log.info("OcrToMetadata step plugin executed");
         return successful ? PluginReturnValue.FINISH : PluginReturnValue.ERROR;
+    }
+
+    private boolean validateMetadataField() {
+        try {
+            Fileformat fileformat = process.readMetadataFile();
+            DigitalDocument dd = fileformat.getDigitalDocument();
+            DocStruct logical = dd.getLogicalDocStruct();
+            // check existence first
+            boolean isValid = checkExistenceOfMetadata(logical, metadataField);
+            // check addability of this Metadata only if it does not exist yet
+            isValid = isValid || checkAddabilityOfMetadata(logical, metadataField);
+
+            log.debug("isValid = " + isValid);
+
+            return isValid;
+        } catch (ReadException | IOException | SwapException | PreferencesException e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+            return false;
+        }
+
+    }
+
+    private boolean checkExistenceOfMetadata(DocStruct ds, String metadataType) {
+        if (ds.getAllMetadata() != null) {
+            for (Metadata md : ds.getAllMetadata()) {
+                if (md.getType().getName().equals(metadataType)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private boolean checkAddabilityOfMetadata(DocStruct ds, String metadataType) {
+        boolean includeHiddenMetadata = true;
+        List<MetadataType> allowedMetadataTypes = ds.getAddableMetadataTypes(includeHiddenMetadata);
+        for (MetadataType mdType : allowedMetadataTypes) {
+            String mdTypeName = mdType.getName();
+            log.debug("mdTypeName = " + mdTypeName);
+            if (metadataType.equals(mdTypeName)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private boolean checkOcrFolder() {
@@ -175,7 +233,7 @@ public class OcrToMetadataStepPlugin implements IStepPluginVersion2 {
         try {
             String directory = ocrTextFolderAvailable ? process.getOcrTxtDirectory() : process.getOcrAltoDirectory();
             textValue = getTextValueFromFolder(directory);
-            log.debug("textValue = " + textValue);
+            //            log.debug("textValue = " + textValue);
 
             return textValue != null;
 
@@ -190,7 +248,7 @@ public class OcrToMetadataStepPlugin implements IStepPluginVersion2 {
         StringBuilder sb = new StringBuilder();
         List<Path> files = storageProvider.listFiles(directory);
         for (Path file : files) {
-            log.debug("file = " + file);
+            //            log.debug("file = " + file);
             String content = ocrTextFolderAvailable ? readContentFromTextFile(file) : readContentFromAltoFile(file);
             sb.append(content);
         }
@@ -223,8 +281,49 @@ public class OcrToMetadataStepPlugin implements IStepPluginVersion2 {
     }
 
     private boolean saveTextValueToMets() {
+        try {
+            Prefs prefs = process.getRegelsatz().getPreferences();
+            Fileformat fileformat = process.readMetadataFile();
+            DigitalDocument dd = fileformat.getDigitalDocument();
+            DocStruct logical = dd.getLogicalDocStruct();
+            String logicalValue = findExistingMetadata(logical, metadataField);
+            log.debug("logicalValue = " + logicalValue);
+            Metadata md = new Metadata(prefs.getMetadataTypeByName("BibliographicCitation"));
+            md.setValue("Bibliographic Citation");
+            logical.addMetadata(md);
 
-        return true;
+            //            process.saveTemporaryMetsFile(fileformat);
+            //            process.overwriteMetadata();
+
+            return true;
+
+        } catch (ReadException | IOException | SwapException | PreferencesException e) {
+            String message = "failed to save the text value into the mets file";
+            logBoth(process.getId(), LogType.ERROR, message);
+            return false;
+        } catch (MetadataTypeNotAllowedException e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    /**
+     * get the value of an existing Metadata
+     * 
+     * @param ds DocStruct whose Metadata should be searched
+     * @param elementType name of MetadataType
+     * @return value of the Metadata if successfully found, null otherwise
+     */
+    private String findExistingMetadata(DocStruct ds, String elementType) {
+        if (ds.getAllMetadata() != null) {
+            for (Metadata md : ds.getAllMetadata()) {
+                if (md.getType().getName().equals(elementType)) {
+                    return md.getValue();
+                }
+            }
+        }
+        return null;
     }
 
     /**
