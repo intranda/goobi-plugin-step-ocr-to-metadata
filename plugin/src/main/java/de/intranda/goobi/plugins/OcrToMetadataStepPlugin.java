@@ -40,7 +40,6 @@ import org.goobi.production.plugin.interfaces.IStepPluginVersion2;
 import org.jdom2.JDOMException;
 
 import de.intranda.digiverso.ocr.alto.model.structureclasses.Page;
-import de.intranda.digiverso.ocr.alto.model.structureclasses.blocks.TextBlock;
 import de.intranda.digiverso.ocr.alto.model.structureclasses.logical.AltoDocument;
 import de.sub.goobi.config.ConfigPlugins;
 import de.sub.goobi.helper.Helper;
@@ -221,8 +220,8 @@ public class OcrToMetadataStepPlugin implements IStepPluginVersion2 {
             boolean success = checkExistenceOfDirectory(ocrDir);
 
             String ocrTextDir = process.getOcrTxtDirectory();
-            //            ocrTextFolderAvailable = false;
-            ocrTextFolderAvailable = success && checkExistenceOfDirectory(ocrTextDir);
+            ocrTextFolderAvailable = false;
+            //            ocrTextFolderAvailable = success && checkExistenceOfDirectory(ocrTextDir);
 
             // check alto directory only when there is no text folder available
             success = ocrTextFolderAvailable || checkExistenceOfDirectory(process.getOcrAltoDirectory());
@@ -296,30 +295,31 @@ public class OcrToMetadataStepPlugin implements IStepPluginVersion2 {
     }
 
     private String readContentFromAltoFile(Path altoFile) {
-        StringBuilder sb = new StringBuilder();
+        AltoDocument altoDoc = null;
         try {
-            AltoDocument altoDoc = AltoDocument.getDocumentFromFile(altoFile.toFile());
-            List<Page> pages = altoDoc.getAllPagesAsList();
-            for (Page page : pages) {
-                String pageId = page.getId();
-                log.debug("pageId = " + pageId);
-                List<TextBlock> textBlocks = page.getAllTextBlocksAsList();
-                for (TextBlock block : textBlocks) {
-                    String blockContent = block.getContent();
-                    sb.append(blockContent);
-                    sb.append("\n\n");
-                }
-            }
-            String result = sb.toString();
-            int length = result.length();
-
-            return length > 0 ? result.substring(0, length - 2) : "";
-
+            altoDoc = AltoDocument.getDocumentFromFile(altoFile.toFile());
         } catch (IOException | JDOMException e) {
             String message = "failed to read the content from the alto file: " + altoFile;
             logBoth(process.getId(), LogType.ERROR, message);
             return "";
         }
+
+        StringBuilder sb = new StringBuilder();
+
+        List<Page> pages = altoDoc.getAllPagesAsList();
+        for (Page page : pages) {
+            String pageContent = page.getContent();
+            sb.append(pageContent);
+            sb.append("\n");
+        }
+
+        int length = sb.length();
+        if (length > 0) {
+            // delete the last \n
+            sb.deleteCharAt(length - 1);
+        }
+
+        return sb.toString();
     }
 
     private boolean saveTextValueToMets() {
