@@ -46,15 +46,16 @@ import de.sub.goobi.helper.exceptions.SwapException;
 import lombok.Getter;
 import lombok.extern.log4j.Log4j2;
 import net.xeoh.plugins.base.annotations.PluginImplementation;
-import ugh.dl.DigitalDocument;
 import ugh.dl.DocStruct;
 import ugh.dl.Fileformat;
 import ugh.dl.Metadata;
 import ugh.dl.MetadataType;
 import ugh.dl.Prefs;
+import ugh.exceptions.DocStructHasNoTypeException;
 import ugh.exceptions.MetadataTypeNotAllowedException;
 import ugh.exceptions.PreferencesException;
 import ugh.exceptions.ReadException;
+import ugh.exceptions.WriteException;
 
 @PluginImplementation
 @Log4j2
@@ -65,6 +66,7 @@ public class OcrToMetadataStepPlugin implements IStepPluginVersion2 {
     private String title = "intranda_step_ocr_to_metadata";
     @Getter
     private Step step;
+
     private Process process;
     @Getter
     private String value;
@@ -76,6 +78,11 @@ public class OcrToMetadataStepPlugin implements IStepPluginVersion2 {
     private String textValue = null;
     // true if ocr text folder is available, false otherwise
     private boolean ocrTextFolderAvailable;
+
+    private Metadata oldMetadata = null;
+
+    private Fileformat fileformat;
+    private DocStruct logical;
 
     @Override
     public void initialize(Step step, String returnPath) {
@@ -136,10 +143,11 @@ public class OcrToMetadataStepPlugin implements IStepPluginVersion2 {
     @Override
     public PluginReturnValue run() {
         boolean successful = true;
-        // your logic goes here
-
         // check ocr folder
         successful = successful && checkOcrFolder();
+        
+        // initialize fileformat and logical
+        successful = successful && initializeLogicalDocStruct();
 
         // validate metadataField, check its existence or addability
         successful = successful && validateMetadataField();
@@ -154,31 +162,34 @@ public class OcrToMetadataStepPlugin implements IStepPluginVersion2 {
         return successful ? PluginReturnValue.FINISH : PluginReturnValue.ERROR;
     }
 
-    private boolean validateMetadataField() {
+    private boolean initializeLogicalDocStruct() {
         try {
-            Fileformat fileformat = process.readMetadataFile();
-            DigitalDocument dd = fileformat.getDigitalDocument();
-            DocStruct logical = dd.getLogicalDocStruct();
-            // check existence first
-            boolean isValid = checkExistenceOfMetadata(logical, metadataField);
-            // check addability of this Metadata only if it does not exist yet
-            isValid = isValid || checkAddabilityOfMetadata(logical, metadataField);
-
-            log.debug("isValid = " + isValid);
-
-            return isValid;
+            fileformat = process.readMetadataFile();
+            logical = fileformat.getDigitalDocument().getLogicalDocStruct();
+            return true;
         } catch (ReadException | IOException | SwapException | PreferencesException e) {
-            // TODO Auto-generated catch block
-            e.printStackTrace();
+            String message = "failed to initialize the logical DocStruct";
+            logBoth(process.getId(), LogType.ERROR, message);
             return false;
         }
+    }
 
+    private boolean validateMetadataField() {
+        // check existence first
+        boolean isValid = checkExistenceOfMetadata(logical, metadataField);
+        // check addability of this Metadata only if it does not exist yet
+        isValid = isValid || checkAddabilityOfMetadata(logical, metadataField);
+
+        log.debug("isValid = " + isValid);
+
+        return isValid;
     }
 
     private boolean checkExistenceOfMetadata(DocStruct ds, String metadataType) {
         if (ds.getAllMetadata() != null) {
             for (Metadata md : ds.getAllMetadata()) {
                 if (md.getType().getName().equals(metadataType)) {
+                    oldMetadata = md;
                     return true;
                 }
             }
@@ -282,30 +293,36 @@ public class OcrToMetadataStepPlugin implements IStepPluginVersion2 {
 
     private boolean saveTextValueToMets() {
         try {
-            Prefs prefs = process.getRegelsatz().getPreferences();
-            Fileformat fileformat = process.readMetadataFile();
-            DigitalDocument dd = fileformat.getDigitalDocument();
-            DocStruct logical = dd.getLogicalDocStruct();
-            String logicalValue = findExistingMetadata(logical, metadataField);
-            log.debug("logicalValue = " + logicalValue);
-            Metadata md = new Metadata(prefs.getMetadataTypeByName("BibliographicCitation"));
-            md.setValue("Bibliographic Citation");
-            logical.addMetadata(md);
+            Metadata newMetadata = prepareNewMetadata(logical, metadataField);
 
-            //            process.saveTemporaryMetsFile(fileformat);
-            //            process.overwriteMetadata();
+            if (oldMetadata != null) {
+                log.debug("replacing the old Metadata...");
+                logical.changeMetadata(oldMetadata, newMetadata);
+            } else {
+                log.debug("adding new Metadata...");
+                logical.addMetadata(newMetadata);
+            }
 
+            process.writeMetadataFile(fileformat);
             return true;
 
-        } catch (ReadException | IOException | SwapException | PreferencesException e) {
+        } catch (MetadataTypeNotAllowedException e) {
+            String message = "MetadataType not allowed";
+            logBoth(process.getId(), LogType.ERROR, message);
+            return false;
+        } catch (IOException | SwapException | PreferencesException | DocStructHasNoTypeException | WriteException e) {
             String message = "failed to save the text value into the mets file";
             logBoth(process.getId(), LogType.ERROR, message);
             return false;
-        } catch (MetadataTypeNotAllowedException e) {
-            // TODO Auto-generated catch block
-            e.printStackTrace();
-            return false;
         }
+    }
+
+    private Metadata prepareNewMetadata(DocStruct ds, String metadataTypeName) throws MetadataTypeNotAllowedException {
+        log.debug("creating new Metadata of type: " + metadataTypeName);
+        Prefs prefs = process.getRegelsatz().getPreferences();
+        Metadata md = new Metadata(prefs.getMetadataTypeByName(metadataTypeName));
+        md.setValue(value); // value here should be replaced by textValue
+        return md;
     }
 
     /**
