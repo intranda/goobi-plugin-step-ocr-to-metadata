@@ -1,6 +1,9 @@
 package de.intranda.goobi.plugins;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 
 /**
@@ -23,6 +26,7 @@ import java.nio.file.Path;
  */
 
 import java.util.HashMap;
+import java.util.List;
 
 import org.apache.commons.configuration.SubnodeConfiguration;
 import org.goobi.beans.Process;
@@ -52,6 +56,7 @@ public class OcrToMetadataStepPlugin implements IStepPluginVersion2 {
     private String title = "intranda_step_ocr_to_metadata";
     @Getter
     private Step step;
+    private Process process;
     @Getter
     private String value;
     @Getter
@@ -59,7 +64,7 @@ public class OcrToMetadataStepPlugin implements IStepPluginVersion2 {
     private String returnPath;
 
     // text value that will be read from the ocr folder and saved to the mets file
-    private String textValue;
+    private String textValue = null;
     // true if ocr text folder is available, false otherwise
     private boolean ocrTextFolderAvailable;
 
@@ -67,6 +72,8 @@ public class OcrToMetadataStepPlugin implements IStepPluginVersion2 {
     public void initialize(Step step, String returnPath) {
         this.returnPath = returnPath;
         this.step = step;
+
+        process = this.step.getProzess();
 
         // read parameters from correct block in configuration file
         SubnodeConfiguration myconfig = ConfigPlugins.getProjectAndStepConfig(title, step);
@@ -136,7 +143,6 @@ public class OcrToMetadataStepPlugin implements IStepPluginVersion2 {
     }
 
     private boolean checkOcrFolder() {
-        Process process = step.getProzess();
         try {
             String ocrDir = process.getOcrDirectory();
             boolean success = checkExistenceOfDirectory(ocrDir);
@@ -166,8 +172,54 @@ public class OcrToMetadataStepPlugin implements IStepPluginVersion2 {
     }
 
     private boolean prepareTextValue() {
+        try {
+            String directory = ocrTextFolderAvailable ? process.getOcrTxtDirectory() : process.getOcrAltoDirectory();
+            textValue = getTextValueFromFolder(directory);
+            log.debug("textValue = " + textValue);
 
-        return true;
+            return textValue != null;
+
+        } catch (SwapException | IOException e) {
+            String message = "failed to retrieve the directory";
+            logBoth(process.getId(), LogType.ERROR, message);
+            return false;
+        }
+    }
+
+    private String getTextValueFromFolder(String directory) {
+        StringBuilder sb = new StringBuilder();
+        List<Path> files = storageProvider.listFiles(directory);
+        for (Path file : files) {
+            log.debug("file = " + file);
+            String content = ocrTextFolderAvailable ? readContentFromTextFile(file) : readContentFromAltoFile(file);
+            sb.append(content);
+        }
+
+        return sb.length() > 0 ? sb.toString() : null;
+    }
+
+    private String readContentFromTextFile(Path textFile) {
+        try (InputStream input = storageProvider.newInputStream(textFile);
+                ByteArrayOutputStream result = new ByteArrayOutputStream()) {
+
+            byte[] buffer = new byte[1024];
+            int length;
+            while ((length = input.read(buffer)) != -1) {
+                result.write(buffer, 0, length);
+            }
+
+            return result.toString(StandardCharsets.UTF_8);
+
+        } catch (IOException e) {
+            String message = "IOException caught while trying to read the content from the text file: " + textFile;
+            logBoth(process.getId(), LogType.ERROR, message);
+            return "";
+        }
+    }
+
+    private String readContentFromAltoFile(Path altoFile) {
+
+        return "";
     }
 
     private boolean saveTextValueToMets() {
