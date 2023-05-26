@@ -306,22 +306,9 @@ public class OcrToMetadataStepPlugin implements IStepPluginVersion2 {
                 List<TextBlock> textBlocks = page.getAllTextBlocksAsList();
                 for (TextBlock block : textBlocks) {
                     String blockContent = block.getContent();
-                    //                    log.debug("blockContent = " + blockContent);
                     sb.append(blockContent);
                     sb.append("\n\n");
                 }
-
-                //                List<Line> lines = page.getAllLinesAsList();
-                //                for (Line line : lines) {
-                //                    String lineContent = line.getContent();
-                //                    log.debug("lineContent = " + lineContent);
-                //                }
-
-                //                List<LineElement> lineElements = page.getAllWordsAsList();
-                //                for (LineElement lineElement : lineElements) {
-                //                    String lineContent = lineElement.getContent();
-                //                    log.debug("lineContent = " + lineContent);
-                //                }
             }
             String result = sb.toString();
             int length = result.length();
