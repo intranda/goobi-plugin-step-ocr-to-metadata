@@ -1,11 +1,3 @@
-package de.intranda.goobi.plugins;
-
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Path;
-
 /**
  * This file is part of a plugin for Goobi - a Workflow tool for the support of mass digitization.
  *
@@ -24,7 +16,13 @@ import java.nio.file.Path;
  * Temple Place, Suite 330, Boston, MA 02111-1307 USA
  *
  */
+package de.intranda.goobi.plugins;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.List;
 
@@ -71,20 +69,18 @@ public class OcrToMetadataStepPlugin implements IStepPluginVersion2 {
     private Step step;
 
     private Process process;
-    @Getter
-    private String value;
+
+    private String returnPath;
     @Getter
     private String metadataField;
-    private String returnPath;
-
     // text value that will be read from the ocr folder and saved to the mets file
     private String textValue = null;
     // true if ocr text folder is available, false otherwise
     private boolean ocrTextFolderAvailable;
-
+    // the old Metadata object of the same type specified by metadataField, which will be replaced in its existence
     private Metadata oldMetadata = null;
 
-    private Fileformat fileformat;
+    private transient Fileformat fileformat;
     private DocStruct logical;
 
     @Override
@@ -96,7 +92,6 @@ public class OcrToMetadataStepPlugin implements IStepPluginVersion2 {
 
         // read parameters from correct block in configuration file
         SubnodeConfiguration myconfig = ConfigPlugins.getProjectAndStepConfig(title, step);
-        value = myconfig.getString("value", "default value");
         metadataField = myconfig.getString("metadataField");
         log.debug("metadataField = " + metadataField);
         log.info("OcrToMetadata step plugin initialized");
@@ -109,6 +104,7 @@ public class OcrToMetadataStepPlugin implements IStepPluginVersion2 {
 
     @Override
     public String getPagePath() {
+        // won't be used
         return "/uii/plugin_step_ocr_to_metadata.xhtml";
     }
 
@@ -148,22 +144,27 @@ public class OcrToMetadataStepPlugin implements IStepPluginVersion2 {
         // check ocr folder
         boolean successful = checkOcrFolder();
         
-        // initialize fileformat and logical
+        // initialize the fields fileformat and logical
         successful = successful && initializeLogicalDocStruct();
 
-        // validate metadataField, check its existence or addability
+        // validate the field metadataField, check its existence or addability
         successful = successful && validateMetadataField();
 
-        // get text value from ocr folder
+        // initialize the field textValue with contents from ocr folder
         successful = successful && prepareTextValue();
 
-        // write the combined text value to the mets file
+        // save the textValue to the mets file
         successful = successful && saveTextValueToMets();
 
         log.info("OcrToMetadata step plugin executed");
         return successful ? PluginReturnValue.FINISH : PluginReturnValue.ERROR;
     }
 
+    /**
+     * initialize the fields fileformat and logical
+     * 
+     * @return true if both fields are initialized successfully, false if any exception should be caught
+     */
     private boolean initializeLogicalDocStruct() {
         try {
             fileformat = process.readMetadataFile();
@@ -177,17 +178,27 @@ public class OcrToMetadataStepPlugin implements IStepPluginVersion2 {
         }
     }
 
+    /**
+     * validate the MetadataType specified by the field metadataField
+     * 
+     * @return true if metadataField specifies a valid MetadataType for the logical DocStruct, false otherwise
+     */
     private boolean validateMetadataField() {
         // check existence first
         boolean isValid = checkExistenceOfMetadata(logical, metadataField);
         // check addability of this Metadata only if it does not exist yet
         isValid = isValid || checkAddabilityOfMetadata(logical, metadataField);
 
-        log.debug("isValid = " + isValid);
-
         return isValid;
     }
 
+    /**
+     * check the existence of a Metadata of the given type in the given DocStruct
+     * 
+     * @param ds DocStruct
+     * @param metadataType type of the Metadata that is targeted
+     * @return true if such a Metadata exists, false otherwise
+     */
     private boolean checkExistenceOfMetadata(DocStruct ds, String metadataType) {
         if (ds.getAllMetadata() != null) {
             for (Metadata md : ds.getAllMetadata()) {
@@ -200,6 +211,13 @@ public class OcrToMetadataStepPlugin implements IStepPluginVersion2 {
         return false;
     }
 
+    /**
+     * check the addability of a Metadata of the given type into the given DocStruct
+     * 
+     * @param ds DocStruct
+     * @param metadataType type of the Metadata that is planned to be added
+     * @return true if the input MetadataType is allowed to be added, false otherwise
+     */
     private boolean checkAddabilityOfMetadata(DocStruct ds, String metadataType) {
         boolean includeHiddenMetadata = true;
         List<MetadataType> allowedMetadataTypes = ds.getAddableMetadataTypes(includeHiddenMetadata);
@@ -213,6 +231,11 @@ public class OcrToMetadataStepPlugin implements IStepPluginVersion2 {
         return false;
     }
 
+    /**
+     * check the existence of needed ocr folders
+     * 
+     * @return true if the text directory or the alto directory exists, false otherwise
+     */
     private boolean checkOcrFolder() {
         try {
             String ocrTextDir = process.getOcrTxtDirectory();
@@ -228,11 +251,22 @@ public class OcrToMetadataStepPlugin implements IStepPluginVersion2 {
         }
     }
 
+    /**
+     * check the existence of a directory
+     * 
+     * @param directory absolute path as a string of a directory
+     * @return true if such a path exists as a directory, false otherwise
+     */
     private boolean checkExistenceOfDirectory(String directory) {
         Path path = Path.of(directory);
         return storageProvider.isFileExists(path) && storageProvider.isDirectory(path);
     }
 
+    /**
+     * prepare the value for the field textValue
+     * 
+     * @return true if textValue is successfully initialized, false otherwise
+     */
     private boolean prepareTextValue() {
         try {
             String directory = ocrTextFolderAvailable ? process.getOcrTxtDirectory() : process.getOcrAltoDirectory();
@@ -246,6 +280,12 @@ public class OcrToMetadataStepPlugin implements IStepPluginVersion2 {
         }
     }
 
+    /**
+     * get contents from the given ocr folder
+     * 
+     * @param directory absolute path to the specified ocr folder
+     * @return contents of files from the ocr folder combined if it is not empty, or null otherwise
+     */
     private String getTextValueFromFolder(String directory) {
         StringBuilder sb = new StringBuilder();
         List<Path> files = storageProvider.listFiles(directory);
@@ -253,13 +293,18 @@ public class OcrToMetadataStepPlugin implements IStepPluginVersion2 {
         for (Path file : files) {
             log.debug("file = " + file);
             String content = ocrTextFolderAvailable ? readContentFromTextFile(file) : readContentFromAltoFile(file);
-            log.debug(content);
             sb.append(content);
         }
 
         return sb.length() > 0 ? sb.toString() : null;
     }
 
+    /**
+     * read the contents from a text file
+     * 
+     * @param textFile absolute path of the text file
+     * @return contents of the text file as a string, or an empty string if any IOException should occur
+     */
     private String readContentFromTextFile(Path textFile) {
         try (InputStream input = storageProvider.newInputStream(textFile);
                 ByteArrayOutputStream result = new ByteArrayOutputStream()) {
@@ -279,6 +324,12 @@ public class OcrToMetadataStepPlugin implements IStepPluginVersion2 {
         }
     }
 
+    /**
+     * read the contents from an alto file
+     * 
+     * @param altoFile absolute path of the alto file
+     * @return contents of the alto file as a string, or an empty string if any IOException or JDOMException should occur
+     */
     private String readContentFromAltoFile(Path altoFile) {
         AltoDocument altoDoc = null;
         try {
@@ -307,9 +358,14 @@ public class OcrToMetadataStepPlugin implements IStepPluginVersion2 {
         return sb.toString();
     }
 
+    /**
+     * save the value of the field textValue to the mets file
+     * 
+     * @return true if the mets file is successfully updated, false is any exception should occur
+     */
     private boolean saveTextValueToMets() {
         try {
-            Metadata newMetadata = prepareNewMetadata(metadataField);
+            Metadata newMetadata = prepareNewMetadata(metadataField, textValue);
 
             if (oldMetadata != null) {
                 log.debug("replacing the old Metadata...");
@@ -326,6 +382,7 @@ public class OcrToMetadataStepPlugin implements IStepPluginVersion2 {
             String message = "MetadataType not allowed";
             logBoth(process.getId(), LogType.ERROR, message);
             return false;
+
         } catch (IOException | SwapException | PreferencesException | DocStructHasNoTypeException | WriteException e) {
             String message = "failed to save the text value into the mets file";
             logBoth(process.getId(), LogType.ERROR, message);
@@ -333,11 +390,19 @@ public class OcrToMetadataStepPlugin implements IStepPluginVersion2 {
         }
     }
 
-    private Metadata prepareNewMetadata(String metadataTypeName) throws MetadataTypeNotAllowedException {
+    /**
+     * prepare a new Metadata object based on the input type and value
+     * 
+     * @param metadataTypeName type of the new Metadata object
+     * @param value value of the new Metadata object
+     * @return a Metadata object of the given type and initialized with the given value
+     * @throws MetadataTypeNotAllowedException
+     */
+    private Metadata prepareNewMetadata(String metadataTypeName, String value) throws MetadataTypeNotAllowedException {
         log.debug("creating new Metadata of type: " + metadataTypeName);
         Prefs prefs = process.getRegelsatz().getPreferences();
         Metadata md = new Metadata(prefs.getMetadataTypeByName(metadataTypeName));
-        md.setValue(textValue); // value here should be replaced by textValue
+        md.setValue(value);
         return md;
     }
 
