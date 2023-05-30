@@ -5,15 +5,15 @@
           2.) step name matches and project is *
           3.) project name matches and step name is *
           4.) project name and step name are *
-	-->
+    -->
     
     <config>
         <!-- which projects to use for (can be more then one, otherwise use *) -->
         <project>*</project>
         <step>*</step>
         
-        <!-- Name of the field where to store the OCR result in -->
-        <metadataField>true</metadataField>
+        <!-- Name of the field where to store the OCR result -->
+        <metadataField>AdditionalInformation</metadataField>
     </config>
 
 </config_plugin>

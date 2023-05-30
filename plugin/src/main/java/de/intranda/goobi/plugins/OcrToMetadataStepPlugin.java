@@ -81,6 +81,7 @@ public class OcrToMetadataStepPlugin implements IStepPluginVersion2 {
     private Metadata oldMetadata = null;
 
     private transient Fileformat fileformat;
+    // the logical DocStruct of the mets file
     private DocStruct logical;
 
     @Override
