@@ -15,8 +15,8 @@ Detail                      | Description
 **Plugin identifier**       | intranda_step_ocr_to_metadata
 **Plugin type**             | step
 **Licence**                 | GPL 2.0 or newer
-**Documentation (German)**  | https://docs.goobi.io/workflow-plugins/v/eng/step/goobi-plugin-step-ocr-to-metadata
-**Documentation (English)** | https://docs.goobi.io/workflow-plugins/v/ger/step/goobi-plugin-step-ocr-to-metadata
+**Documentation (German)**  | https://docs.goobi.io/workflow-plugins/v/ger/step/goobi-plugin-step-ocr-to-metadata
+**Documentation (English)** | https://docs.goobi.io/workflow-plugins/v/eng/step/goobi-plugin-step-ocr-to-metadata
 
 ## Goobi details
 
