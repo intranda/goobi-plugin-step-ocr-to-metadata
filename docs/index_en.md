@@ -3,6 +3,10 @@ title: Transfer OCR result to metadata field
 identifier: intranda_step_ocr_to_metadata
 published: true
 description: This Goobi workflow step plugin allows to read the OCR fulltext of all images of a process to be written as plaintext into a given metadata field.
+keywords:
+    - Goobi workflow
+    - Plugin
+    - Step Plugin
 ---
 ## Introduction
 This step plug-in for Goobi Workflow automatically reads the OCR results of all associated files, combines them and then saves them in a configurable metadata field within the METS file.
