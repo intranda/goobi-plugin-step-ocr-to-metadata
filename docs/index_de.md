@@ -3,6 +3,10 @@ title: OCR-Ergebnis in Metadatenfeld übernehmen
 identifier: intranda_step_ocr_to_metadata
 published: true
 description: Dieses Goobi-Workflow-Step-Plugin ermöglicht es, den OCR-Volltext aller Bilder eines Vorgangs zu lesen und als Klartext in ein vorgegebenes Metadatenfeld zu schreiben.
+keywords:
+    - Goobi workflow
+    - Plugin
+    - Step Plugin
 ---
 ## Einführung
 Dieses Step-Plugin für Goobi Workflow liest die OCR-Ergebnisse aller zugehörigen Dateien automatisch ein, kombiniert diese miteinander und speichert sie anschließend in einem konfigurierbaren Metadatenfeld innerhalb der METS-Datei.
