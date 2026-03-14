@@ -71,4 +71,4 @@ The configuration of the plugin is done via the configuration file `plugin_intra
 | :--- | :--- |
 | `project` | This parameter determines the project for which the current block `<config>` is to apply. The name of the project is used here. This parameter can occur several times per `<config>` block. |
 | `step` | This parameter controls for which workflow steps the block `<config>` is to apply. The name of the step is used here. This parameter can occur several times per `<config>` block. |
-| `metadataField` | This parameter defines the typecof the metadata field that should be used to store the OCR result.  |
+| `metadataField` | This parameter defines the type of the metadata field that should be used to store the OCR result.  |
